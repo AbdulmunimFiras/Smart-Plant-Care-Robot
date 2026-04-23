@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>نظام التظليل الذكي - Fuzzy Plant Control</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;700;900&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --bg:      #0a0f0d;
+    --panel:   #0f1a14;
+    --border:  #1a3025;
+    --green:   #2ecc71;
+    --lime:    #a8e063;
+    --amber:   #f39c12;
+    --red:     #e74c3c;
+    --teal:    #1abc9c;
+    --text:    #d4edda;
+    --muted:   #5a8a6a;
+    --sun:     #f9ca24;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Tajawal', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* === BACKGROUND === */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 80% 10%, rgba(46,204,113,.07) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 60% at 10% 80%, rgba(26,188,156,.05) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  /* === TROY FOOTER === */
+  .troy-footer {
+    text-align: center;
+    padding: .8rem;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .65rem;
+    color: rgba(255,255,255,.12);
+    letter-spacing: .15em;
+  }
+
+  /* === HEADER === */
+  header {
+    padding: 2rem 2rem 1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .logo { font-size: 2.4rem; filter: drop-shadow(0 0 12px var(--green)); }
+  header h1 { font-size: 1.5rem; font-weight: 900; color: var(--green); line-height: 1.2; }
+  header p  { font-size: .85rem; color: var(--muted); margin-top: .2rem; }
+
+  /* === MAIN GRID === */
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 1.5rem;
+    padding: 1.5rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  @media(max-width:820px) { .main { grid-template-columns: 1fr; } }
+
+  /* === PANELS === */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.4rem;
+  }
+  .card h2 {
+    font-size: .9rem;
+    font-weight: 700;
+    color: var(--teal);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    margin-bottom: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+  }
+
+  /* === SIMULATION SCENE === */
+  .scene-wrap { position: relative; }
+  .scene {
+    width: 100%;
+    height: 380px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #0d1f2d 0%, #0a150e 60%, #112010 100%);
+    overflow: hidden;
+    position: relative;
+    border: 1px solid var(--border);
+  }
+
+  /* Sky gradient - changes with light */
+  .sky {
+    position: absolute;
+    inset: 0;
+    transition: background 1s;
+  }
+
+  /* Sun */
+  .sun {
+    position: absolute;
+    top: 30px; left: 50%;
+    transform: translateX(-50%);
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    background: var(--sun);
+    box-shadow: 0 0 30px 10px rgba(249,202,36,.5);
+    transition: opacity .5s, box-shadow 1s;
+  }
+
+  /* Rays */
+  .rays {
+    position: absolute;
+    top: 30px; left: 50%;
+    transform: translateX(-50%);
+    width: 60px; height: 60px;
+  }
+  .ray {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform-origin: 0 0;
+    width: 2px;
+    background: rgba(249,202,36,.3);
+    border-radius: 2px;
+    transition: height .5s, opacity .5s;
+  }
+
+  /* Layers */
+  .layers-container {
+    position: absolute;
+    top: 120px; left: 10%; right: 10%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .shade-layer {
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,.07);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .7rem;
+    color: rgba(255,255,255,.5);
+    transition: background .8s, opacity .8s, transform .8s;
+    transform-origin: top center;
+  }
+  .shade-layer.inactive {
+    background: rgba(255,255,255,.04);
+    opacity: .35;
+    transform: scaleY(.6);
+  }
+  .shade-layer.active {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  .shade-layer.l1.active { background: rgba(46,204,113,.25); border-color: rgba(46,204,113,.4); }
+  .shade-layer.l2.active { background: rgba(52,152,219,.25); border-color: rgba(52,152,219,.4); }
+  .shade-layer.l3.active { background: rgba(155,89,182,.25); border-color: rgba(155,89,182,.4); }
+
+  /* Plant */
+  .plant-wrap {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+  }
+  .plant-emoji {
+    font-size: 3.5rem;
+    line-height: 1;
+    transition: filter .5s;
+    display: block;
+    animation: sway 4s ease-in-out infinite;
+  }
+  @keyframes sway {
+    0%,100% { transform: rotate(-2deg); }
+    50%      { transform: rotate(2deg);  }
+  }
+  .pot { font-size: 2rem; display: block; margin-top: -8px; }
+
+  /* Arduino chip overlay */
+  .arduino-badge {
+    position: absolute;
+    top: 10px; right: 10px;
+    background: rgba(10,20,14,.8);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: .4rem .7rem;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .7rem;
+    color: var(--teal);
+  }
+
+  /* === SLIDER === */
+  .slider-section { margin-top: 1.2rem; }
+  .slider-label {
+    display: flex; justify-content: space-between;
+    font-size: .85rem; color: var(--muted);
+    margin-bottom: .5rem;
+  }
+  .slider-label strong { color: var(--sun); font-size: 1rem; }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%; height: 8px;
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+    transition: background .3s;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--sun);
+    box-shadow: 0 0 10px rgba(249,202,36,.6);
+    cursor: pointer;
+  }
+
+  /* === STATUS PILLS === */
+  .status-row {
+    display: flex; gap: .7rem; flex-wrap: wrap;
+    margin-top: 1rem;
+  }
+  .pill {
+    padding: .35rem .9rem;
+    border-radius: 20px;
+    font-size: .8rem;
+    font-weight: 700;
+    border: 1px solid transparent;
+    transition: all .4s;
+    opacity: .35;
+  }
+  .pill.active { opacity: 1; }
+  .pill.safe   { background: rgba(46,204,113,.15); border-color: var(--green); color: var(--green); }
+  .pill.warn   { background: rgba(243,156,18,.15); border-color: var(--amber); color: var(--amber); }
+  .pill.danger { background: rgba(231,76,60,.15); border-color: var(--red); color: var(--red); }
+
+  /* === FUZZY CHART === */
+  canvas { width: 100%; border-radius: 8px; }
+
+  /* === OUTPUT PANEL === */
+  .out-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .8rem;
+    margin-bottom: 1rem;
+  }
+  .out-box {
+    background: rgba(255,255,255,.03);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: .9rem;
+    text-align: center;
+  }
+  .out-box .val {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--teal);
+    display: block;
+  }
+  .out-box .lbl { font-size: .72rem; color: var(--muted); margin-top: .2rem; }
+
+  /* === LAYER INDICATORS === */
+  .layer-bars { display: flex; flex-direction: column; gap: .6rem; }
+  .layer-bar-row {
+    display: flex; align-items: center; gap: .8rem;
+  }
+  .layer-bar-row span:first-child {
+    font-size: .75rem; color: var(--muted); width: 60px; text-align: left; direction: ltr;
+  }
+  .bar-track {
+    flex: 1; height: 10px;
+    background: rgba(255,255,255,.06);
+    border-radius: 5px; overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%; border-radius: 5px;
+    transition: width .8s cubic-bezier(.4,0,.2,1);
+    width: 0%;
+  }
+  .bf1 { background: linear-gradient(90deg, #2ecc71, #a8e063); }
+  .bf2 { background: linear-gradient(90deg, #3498db, #2980b9); }
+  .bf3 { background: linear-gradient(90deg, #9b59b6, #8e44ad); }
+  .layer-bar-row .status-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--border); transition: background .4s;
+  }
+  .status-dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+  /* === RULES LOG === */
+  .rules { margin-top: 1rem; }
+  .rule-item {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .4rem .7rem;
+    border-radius: 6px;
+    font-size: .78rem;
+    margin-bottom: .3rem;
+    transition: background .3s;
+  }
+  .rule-item.fired { background: rgba(46,204,113,.1); }
+  .rule-item .mu {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .72rem;
+    color: var(--teal);
+    width: 45px;
+  }
+
+  /* === SERIAL MONITOR === */
+  .serial {
+    background: #050a07;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: .8rem;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: .72rem;
+    color: #4ec9b0;
+    height: 120px;
+    overflow-y: auto;
+    margin-top: .8rem;
+  }
+  .serial .line { margin-bottom: .15rem; opacity: .85; }
+  .serial .line span { color: var(--muted); }
+
+  /* === SECTION DIVIDER === */
+  .section-title {
+    font-size: .78rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    margin: 1rem 0 .6rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🌿</div>
+  <div>
+    <h1>نظام التظليل الذكي للنبات</h1>
+    <p>Fuzzy Logic Control • Arduino Uno • LDR Sensor • 3 Servo Layers</p>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- LEFT: SCENE + CONTROLS -->
+  <div>
+    <!-- SIMULATION -->
+    <div class="card scene-wrap">
+      <h2>🎮 محاكاة النظام</h2>
+
+      <div class="scene" id="scene">
+        <div class="sky" id="sky"></div>
+
+        <!-- Sun & Rays -->
+        <div class="rays" id="rays"></div>
+        <div class="sun"  id="sun"></div>
+
+        <!-- Shading Layers -->
+        <div class="layers-container">
+          <div class="shade-layer l1 inactive" id="sl1">Layer 1 — طبقة التظليل الأولى</div>
+          <div class="shade-layer l2 inactive" id="sl2">Layer 2 — طبقة التظليل الثانية</div>
+          <div class="shade-layer l3 inactive" id="sl3">Layer 3 — طبقة التظليل الثالثة</div>
+        </div>
+
+        <!-- Plant -->
+        <div class="plant-wrap">
+          <span class="plant-emoji" id="plantEmoji">🌱</span>
+          <span class="pot">🪴</span>
+        </div>
+
+        <!-- Badge -->
+        <div class="arduino-badge">Arduino UNO</div>
+      </div>
+
+      <!-- SLIDER -->
+      <div class="slider-section">
+        <div class="slider-label">
+          <span>🌙 ضوء منخفض</span>
+          <strong id="lightPct">50%</strong>
+          <span>☀️ ضوء شديد</span>
+        </div>
+        <input type="range" id="ldrSlider" min="0" max="100" value="50"/>
+        <div class="status-row">
+          <div class="pill safe"   id="pSafe">🟢 آمن - 0 طبقات</div>
+          <div class="pill warn"   id="pWarn">🟡 تحذير - 1-2 طبقة</div>
+          <div class="pill danger" id="pDanger">🔴 خطر - 3 طبقات</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FUZZY MEMBERSHIP CHART -->
+    <div class="card" style="margin-top:1.2rem">
+      <h2>📊 دوال العضوية - Membership Functions</h2>
+      <canvas id="mfChart" height="160"></canvas>
+    </div>
+  </div>
+
+  <!-- RIGHT: DATA PANELS -->
+  <div style="display:flex;flex-direction:column;gap:1.2rem;">
+
+    <!-- OUTPUTS -->
+    <div class="card">
+      <h2>📡 مخرجات النظام</h2>
+      <div class="out-grid">
+        <div class="out-box">
+          <span class="val" id="outADC">512</span>
+          <div class="lbl">قيمة ADC الخام</div>
+        </div>
+        <div class="out-box">
+          <span class="val" id="outFuzzy">1.50</span>
+          <div class="lbl">مخرج Fuzzy (0→3)</div>
+        </div>
+        <div class="out-box">
+          <span class="val" id="outLayers">1</span>
+          <div class="lbl">عدد الطبقات الفعّالة</div>
+        </div>
+        <div class="out-box">
+          <span class="val" id="outServo">90°</span>
+          <div class="lbl">زاوية Servo 1</div>
+        </div>
+      </div>
+
+      <div class="section-title">حالة الطبقات</div>
+      <div class="layer-bars">
+        <div class="layer-bar-row">
+          <span>Layer 1</span>
+          <div class="bar-track"><div class="bar-fill bf1" id="b1"></div></div>
+          <div class="status-dot" id="d1"></div>
+        </div>
+        <div class="layer-bar-row">
+          <span>Layer 2</span>
+          <div class="bar-track"><div class="bar-fill bf2" id="b2"></div></div>
+          <div class="status-dot" id="d2"></div>
+        </div>
+        <div class="layer-bar-row">
+          <span>Layer 3</span>
+          <div class="bar-track"><div class="bar-fill bf3" id="b3"></div></div>
+          <div class="status-dot" id="d3"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FUZZY RULES -->
+    <div class="card">
+      <h2>🧠 قواعد Fuzzy المُشغَّلة</h2>
+      <div id="rulesLog"></div>
+    </div>
+
+    <!-- SERIAL MONITOR -->
+    <div class="card">
+      <h2>💻 Serial Monitor</h2>
+      <div class="serial" id="serialMon">
+        <div class="line"><span>// </span>نظام التظليل الذكي يعمل...</div>
+        <div class="line"><span>Raw  | Light% | Fuzzy | Layers</span></div>
+        <div class="line"><span>-----|--------|-------|-------</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  FUZZY LOGIC ENGINE (mirrors Arduino code)
+// ============================================================
+const trapMF = (x,a,b,c,d) => {
+  if(x<=a||x>d) return 0;   // إصلاح: x>d بدل x>=d حتى يشمل الحد الأعلى
+  if(x>=b&&x<=c) return 1;
+  if(x<b) return (x-a)/(b-a);
+  return (d-x)/(d-c);
+};
+const triMF = (x,a,b,c) => {
+  if(x<=a||x>=c) return 0;
+  if(x<=b) return (x-a)/(b-a);
+  return (c-x)/(c-b);
+};
+
+const mfs = {
+  veryLow:  x => trapMF(x,0,   0,   .15, .30),
+  low:      x => triMF (x,.15, .30, .50),
+  medium:   x => triMF (x,.35, .50, .70),
+  high:     x => triMF (x,.55, .70, .85),
+  veryHigh: x => trapMF(x,.75, .85, 1,  1.01),
+};
+const centers = { veryLow:0, low:1, medium:2, high:2.5, veryHigh:3 };
+const labels  = { veryLow:'منخفض جداً', low:'منخفض', medium:'متوسط', high:'مرتفع', veryHigh:'مرتفع جداً' };
+
+function fuzzyInfer(light) {
+  let num=0, den=0, mus={};
+  for(const k in mfs){ mus[k]=mfs[k](light); num+=mus[k]*centers[k]; den+=mus[k]; }
+  return { out: den<1e-4?0:num/den, mus };
+}
+
+function getLayers(out, light) {
+  if(light >= 0.75) return 3;
+  if(out < 0.8)     return 0;
+  if(out < 1.8)     return 1;
+  if(out < 2.5)     return 2;
+  return 3;
+}
+
+// ============================================================
+//  MEMBERSHIP FUNCTION CHART
+// ============================================================
+const mfCanvas = document.getElementById('mfChart');
+const mfCtx    = mfCanvas.getContext('2d');
+const colors   = ['#3498db','#2ecc71','#f39c12','#e74c3c','#9b59b6'];
+const mfKeys   = ['veryLow','low','medium','high','veryHigh'];
+
+function drawMFChart(lightNorm) {
+  const W=mfCanvas.width=mfCanvas.offsetWidth*window.devicePixelRatio||600;
+  const H=160*window.devicePixelRatio||160;
+  mfCanvas.height=H;
+  const ctx=mfCtx;
+  ctx.scale(1,1);
+  ctx.clearRect(0,0,W,H);
+
+  const pad={l:30,r:10,t:10,b:30};
+  const pw=W-pad.l-pad.r, ph=H-pad.t-pad.b;
+
+  // grid
+  ctx.strokeStyle='rgba(255,255,255,.06)';
+  for(let i=0;i<=4;i++){
+    ctx.beginPath();
+    ctx.moveTo(pad.l,pad.t+i*ph/4);
+    ctx.lineTo(pad.l+pw,pad.t+i*ph/4);
+    ctx.stroke();
+  }
+  // x-axis labels
+  ctx.fillStyle='rgba(255,255,255,.3)';
+  ctx.font=`${10*window.devicePixelRatio}px Share Tech Mono`;
+  for(let i=0;i<=5;i++){
+    ctx.fillText((i*20)+'%',pad.l+i*pw/5-8,H-8);
+  }
+
+  // curves
+  const N=200;
+  mfKeys.forEach((k,ki)=>{
+    ctx.beginPath();
+    for(let i=0;i<=N;i++){
+      const x=i/N;
+      const y=mfs[k](x);
+      const cx=pad.l+x*pw;
+      const cy=pad.t+ph-(y*ph);
+      i===0?ctx.moveTo(cx,cy):ctx.lineTo(cx,cy);
+    }
+    ctx.strokeStyle=colors[ki];
+    ctx.lineWidth=2;
+    ctx.stroke();
+    // label
+    const midX=pad.l+{veryLow:.08,low:.32,medium:.5,high:.7,veryHigh:.9}[k]*pw;
+    ctx.fillStyle=colors[ki];
+    ctx.font=`${9*window.devicePixelRatio}px Tajawal`;
+    ctx.fillText(labels[k],midX-15,pad.t+12);
+  });
+
+  // current light line
+  const lx=pad.l+lightNorm*pw;
+  ctx.beginPath();
+  ctx.moveTo(lx,pad.t); ctx.lineTo(lx,pad.t+ph);
+  ctx.strokeStyle='rgba(249,202,36,.8)';
+  ctx.lineWidth=2;
+  ctx.setLineDash([4,4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// ============================================================
+//  UI UPDATE
+// ============================================================
+let serialLog=[];
+
+function update(val) {
+  const light = val/100;
+  const adc   = Math.round(light*1023);
+  const {out, mus} = fuzzyInfer(light);
+  const layers= getLayers(out, light);
+
+  // scene sky
+  const skyEl=document.getElementById('sky');
+  const night=`rgba(13,31,45,${1-light*.8})`;
+  const day  =`rgba(135,206,235,${light*.6})`;
+  skyEl.style.background=`linear-gradient(180deg,${day} 0%,${night} 100%)`;
+
+  // sun
+  const sunEl=document.getElementById('sun');
+  sunEl.style.opacity=0.3+light*.7;
+  sunEl.style.boxShadow=`0 0 ${20+light*50}px ${5+light*20}px rgba(249,202,36,${.3+light*.5})`;
+
+  // slider gradient
+  const sl=document.getElementById('ldrSlider');
+  sl.style.background=`linear-gradient(90deg,#1a3a2a ${val}%,rgba(255,255,255,.08) ${val}%)`;
+
+  // shade layers
+  [1,2,3].forEach(i=>{
+    const el=document.getElementById('sl'+i);
+    const active=i<=layers;
+    el.classList.toggle('active',active);
+    el.classList.toggle('inactive',!active);
+  });
+
+  // plant emoji
+  const plants=['🌱','🌿','🌾','🥀'];
+  document.getElementById('plantEmoji').textContent =
+    layers===0?'🌺': layers===1?'🌿': layers===2?'🌱':'🌱';
+
+  // outputs
+  document.getElementById('outADC').textContent  = adc;
+  document.getElementById('outFuzzy').textContent= out.toFixed(2);
+  document.getElementById('outLayers').textContent= layers;
+  document.getElementById('outServo').textContent = (layers>=1?'90°':'0°');
+  document.getElementById('lightPct').textContent = val+'%';
+
+  // layer bars & dots
+  [1,2,3].forEach(i=>{
+    const on=i<=layers;
+    document.getElementById('b'+i).style.width=(on?100:15)+'%';
+    const dot=document.getElementById('d'+i);
+    dot.classList.toggle('on',on);
+  });
+
+  // pills
+  document.getElementById('pSafe').classList.toggle('active', layers===0);
+  document.getElementById('pWarn').classList.toggle('active', layers===1||layers===2);
+  document.getElementById('pDanger').classList.toggle('active', layers===3);
+
+  // fuzzy rules
+  const rulesEl=document.getElementById('rulesLog');
+  rulesEl.innerHTML='';
+  mfKeys.forEach((k,ki)=>{
+    const mu=mus[k];
+    const fired=mu>0.01;
+    const div=document.createElement('div');
+    div.className='rule-item'+(fired?' fired':'');
+    div.innerHTML=`
+      <span class="mu">μ=${mu.toFixed(2)}</span>
+      <span style="color:${colors[ki]};margin-left:.3rem">■</span>
+      <span>إذا الضوء <b>${labels[k]}</b> → ${Math.round(centers[k])} طبقة/طبقات</span>`;
+    rulesEl.appendChild(div);
+  });
+
+  // serial monitor
+  const sm=document.getElementById('serialMon');
+  const line=document.createElement('div');
+  line.className='line';
+  line.innerHTML=`<span>${String(adc).padStart(4)} | </span>${val}%\t<span>| </span>${out.toFixed(2)}\t<span>| </span>${layers} layer(s)`;
+  sm.appendChild(line);
+  if(sm.children.length>20) sm.removeChild(sm.children[3]);
+  sm.scrollTop=sm.scrollHeight;
+
+  // MF chart
+  drawMFChart(light);
+}
+
+// slider
+const slider=document.getElementById('ldrSlider');
+slider.addEventListener('input',e=>update(+e.target.value));
+
+// init
+update(50);
+
+// resize
+window.addEventListener('resize',()=>update(+slider.value));
+</script>
+<div class="troy-footer">designed by TROY</div>
+</body>
+</html>
