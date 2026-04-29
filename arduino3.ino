@@ -11,14 +11,14 @@
 #include <Servo.h>
 #include <AM2302-Sensor.h>
 
-// ─── Pin Definitions ───────────────────────────────────────────────
+// Pin Definitions 
 const int moisturePin     = A0;
 const int ldrPin          = A1;
 const int relayPin        = 7;
 const int servoPin        = 9;
-constexpr uint8_t dhtPin  = 4;      // AM2302 DATA pin → pin 2
+constexpr uint8_t dhtPin  = 4;     
 
-// ─── Object Declarations ───────────────────────────────────────────
+// Object Declarations
 AM2302::AM2302_Sensor am2302(dhtPin);
 
 int ldrValue        = 0;
@@ -56,7 +56,7 @@ void setup() {
 
 void loop() {
 
-  // ── 1. Read Moisture ─────────────────────────────────────────────
+  //  1. Read Moisture
   moistureValue = analogRead(moisturePin);
   int moisturePercent = map(moistureValue, 1023, 0, 0, 100);
 
@@ -64,7 +64,7 @@ void loop() {
   Serial.print(moisturePercent);
   Serial.println("%");
 
-  // ── 2. Read Light ────────────────────────────────────────────────
+  //  2. Read Light
   ldrValue = analogRead(ldrPin);
   int lightPercent = map(ldrValue, 0, 1023, 100, 0);
 
@@ -76,13 +76,13 @@ void loop() {
   else if (lightPercent < 70) Serial.println("Status: MODERATE light");
   else                        Serial.println("Status: HIGH light");
 
-  // ── 3. Read Temp & Humidity (AM2302) ─────────────────────────────
-  am2302.read();                                   // ← just call read(), ignore status enum
+  // ── 3. Read Temp & Humidity (AM2302)
+  am2302.read();                          //  just call read(), ignore status enum
 
   float temperature = am2302.get_Temperature();
   float humidity    = am2302.get_Humidity();
 
-  bool sensorOK = !isnan(temperature) && !isnan(humidity);  // ← check values directly
+  bool sensorOK = !isnan(temperature) && !isnan(humidity);  //  check values directly
 
   if (!sensorOK) {
     Serial.println("AM2302 ERROR: Check wiring on pin 4!");
@@ -93,11 +93,11 @@ void loop() {
 
   Serial.println("-----------------");
 
-  // ── 4. LCD Alternating Screens ───────────────────────────────────
+  // ── 4. LCD Alternating Screens 
   lcd.clear();
 
   if (!showTempScreen) {
-    // Screen 1 — Moisture & Light
+    // Screen 1 - Moisture & Light
     lcd.setCursor(0, 0);
     lcd.print("Moist: ");
     lcd.print(moisturePercent);
@@ -109,7 +109,7 @@ void loop() {
     lcd.print("%   ");
 
   } else {
-    // Screen 2 — Temp & Humidity
+    // Screen 2 - Temp & Humidity
     lcd.setCursor(0, 0);
     if (sensorOK) {
       lcd.print("Temp:  ");
@@ -132,13 +132,13 @@ void loop() {
   showTempScreen = !showTempScreen;
   delay(2000);
 
-  // ── 5. Servo Sweep ───────────────────────────────────────────────
+  //  5. Servo Sweep 
   myServo.write(90);
   delay(3000);
   myServo.write(0);
   delay(3000);
 
-  // ── 6. Pump Control ──────────────────────────────────────────────
+  // 6. Pump Control
   if (moisturePercent < 40) {
     digitalWrite(relayPin, LOW);
     Serial.println("Pump: ON");
