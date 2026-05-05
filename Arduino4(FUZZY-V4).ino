@@ -8,7 +8,7 @@
 //    A1  - LDR light sensor (analog)
 //    D4  - AM2302 / DHT22 (temperature & humidity)
 //    D7  - Relay  (water pump, ACTIVE-LOW module)
-//    D8  - Buzzer (alarm)
+//    D8  - Buzzer (alarm) 
 //    D9  - Servo  (polarized shading sheets)
 //    A4  - I2C SDA  (LCD 16x2 @ 0x27)
 //    A5  - I2C SCL  (LCD 16x2 @ 0x27)
