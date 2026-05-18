@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phoenix — Plant Monitor</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%232d6a4f'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='white'>🌿</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+[data-theme="light"] {
+  --bg: #f5f0e8;
+  --bg2: #ede8dc;
+  --white: #ffffff;
+  --ink: #1a1a1a;
+  --ink2: #4a4a4a;
+  --ink3: #8a8a8a;
+  --line: #ddd8cc;
+  --line2: #ccc6b8;
+  --card: #ffffff;
+  --gc: #f0ede6;
+  --tc: #bbb5a8;
+  --input-bg: #f5f0e8;
+}
+
+[data-theme="dark"] {
+  --bg: #111210;
+  --bg2: #1a1c18;
+  --white: #1f2119;
+  --ink: #e8e6e0;
+  --ink2: #a8a89a;
+  --ink3: #666860;
+  --line: #2e3028;
+  --line2: #3a3c32;
+  --card: #1f2119;
+  --gc: #1a1c18;
+  --tc: #444840;
+  --input-bg: #2a2c22;
+}
+
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; font-size: 14px; transition: background 0.2s, color 0.2s; }
+
+/* NAV */
+header { background: var(--white); border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 1.5rem; height: 54px; gap: 1rem; position: sticky; top: 0; z-index: 100; transition: background 0.2s, border-color 0.2s; }
+.wordmark { font-size: 15px; font-weight: 600; color: var(--ink); white-space: nowrap; flex-shrink: 0; }
+.wordmark span { color: #2d6a4f; }
+.plant-tabs { display: flex; align-items: center; gap: 2px; overflow-x: auto; }
+.ptab { display: flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 6px; cursor: pointer; border: none; background: none; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: var(--ink3); transition: all 0.15s; white-space: nowrap; }
+.ptab:hover { background: var(--bg2); color: var(--ink2); }
+.ptab.active { background: var(--bg2); color: var(--ink); }
+.ptab-sw { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; transition: background 0.3s; }
+.nav-right { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
+.live-tag { font-family: 'DM Mono', monospace; font-size: 11px; color: #2d6a4f; background: #d8f3dc; padding: 3px 10px; border-radius: 4px; display: flex; align-items: center; gap: 5px; }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #2d6a4f; animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+.clock { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--ink3); }
+.nav-btn { padding: 5px 11px; border-radius: 6px; border: 1px solid var(--line); background: none; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; color: var(--ink2); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.nav-btn:hover { background: var(--bg2); }
+.nav-btn.demo-active { background: #c0392b; border-color: #c0392b; color: #fff; }
+.theme-toggle { padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line); background: none; cursor: pointer; font-size: 14px; transition: all 0.15s; }
+.theme-toggle:hover { background: var(--bg2); }
+
+/* ALERT */
+.alert-strip { display: none; align-items: center; gap: 10px; background: #fde8e8; border-bottom: 1px solid #f5c6c6; padding: 9px 1.5rem; font-size: 13px; color: #c0392b; font-weight: 500; }
+.alert-strip.show { display: flex; }
+.alert-x { margin-left: auto; background: none; border: none; color: #c0392b; cursor: pointer; font-size: 17px; }
+
+/* DEMO BANNER */
+.demo-banner { display: none; background: #1e4a8a; padding: 8px 1.5rem; font-size: 12px; color: #dbeafe; font-family: 'DM Mono', monospace; align-items: center; gap: 10px; }
+.demo-banner.show { display: flex; }
+.demo-step { flex: 1; }
+.demo-progress { height: 3px; background: rgba(255,255,255,0.2); border-radius: 2px; margin-top: 4px; }
+.demo-bar { height: 100%; background: #60a5fa; border-radius: 2px; transition: width 0.1s linear; }
+
+/* LAYOUT */
+.main { display: grid; grid-template-columns: 1fr 300px; min-height: calc(100vh - 54px - 44px); }
+
+/* LEFT */
+.left { padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; }
+.panel { display: none; flex-direction: column; gap: 1rem; }
+.panel.active { display: flex; }
+
+.panel-top { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.panel-name { font-size: 22px; font-weight: 600; letter-spacing: -0.4px; color: var(--ink); }
+.panel-slot { font-size: 11px; color: var(--ink3); font-family: 'DM Mono', monospace; margin-top: 3px; }
+.panel-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.health-tag { font-size: 12px; font-weight: 600; padding: 4px 11px; border-radius: 4px; border: 1px solid; }
+.h-ok   { background: #d8f3dc; color: #2d6a4f; border-color: #a8d5b5; }
+.h-warn { background: #fde8d0; color: #b5550a; border-color: #f5c89a; }
+.h-err  { background: #fde8e8; color: #c0392b; border-color: #f5c6c6; }
+
+.pump-btn { display: flex; align-items: center; gap: 7px; padding: 5px 13px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: var(--ink2); transition: all 0.15s; }
+.pump-btn:hover { border-color: var(--line2); }
+.pump-btn.on { background: #2d6a4f; border-color: #2d6a4f; color: #fff; }
+.pump-ind { width: 7px; height: 7px; border-radius: 50%; background: var(--ink3); transition: background 0.2s; flex-shrink: 0; }
+.pump-btn.on .pump-ind { background: #a8f0c0; }
+.settings-btn { padding: 5px 11px; border-radius: 6px; border: 1px solid var(--line); background: none; font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--ink3); cursor: pointer; transition: all 0.15s; }
+.settings-btn:hover { background: var(--bg2); color: var(--ink2); }
+
+/* RANGE BAR */
+.range-card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+.range-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: var(--ink3); margin-bottom: 10px; display: flex; justify-content: space-between; }
+.range-label span { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--ink2); font-weight: 400; text-transform: none; letter-spacing: 0; }
+.range-track { position: relative; height: 10px; background: var(--bg2); border-radius: 5px; margin-bottom: 7px; }
+.range-zone { position: absolute; top: 0; height: 100%; border-radius: 5px; }
+.range-needle { position: absolute; top: -4px; width: 3px; height: 18px; border-radius: 2px; transform: translateX(-50%); transition: left 0.5s ease; }
+.range-ticks { display: flex; justify-content: space-between; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--ink3); }
+
+/* STATS */
+.stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.stat { background: var(--card); padding: 14px 16px; }
+.stat-key { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: var(--ink3); margin-bottom: 8px; }
+.stat-num { font-size: 26px; font-weight: 300; color: var(--ink); line-height: 1; font-family: 'DM Mono', monospace; }
+.stat-unit { font-size: 13px; color: var(--ink3); }
+.stat-note { font-size: 11px; color: var(--ink3); margin-top: 5px; font-family: 'DM Mono', monospace; }
+
+/* CHARTS */
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.chart-box { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+.chart-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+.chart-name { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: var(--ink3); }
+.chart-live { font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; color: var(--ink); }
+.chart-wrap { position: relative; height: 100px; }
+
+/* RIGHT SIDEBAR */
+.right { border-left: 1px solid var(--line); background: var(--white); display: flex; flex-direction: column; overflow: hidden; transition: background 0.2s; }
+.sidebar-section { border-bottom: 1px solid var(--line); padding: 13px 14px; }
+.sidebar-section.log-section { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+.section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: var(--ink3); margin-bottom: 10px; }
+
+/* FUZZY */
+.fuzzy-decision { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.fuzzy-badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+.f-high { background: #fde8e8; color: #c0392b; }
+.f-med  { background: #fde8d0; color: #b5550a; }
+.f-off  { background: var(--bg2); color: var(--ink3); }
+.fuzzy-inputs { display: flex; flex-direction: column; gap: 7px; margin-bottom: 10px; }
+.fi-row { display: flex; align-items: center; gap: 8px; }
+.fi-label { font-size: 11px; color: var(--ink3); width: 65px; flex-shrink: 0; }
+.fi-track { flex: 1; height: 5px; background: var(--bg2); border-radius: 3px; overflow: hidden; }
+.fi-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+.fi-val { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--ink2); width: 38px; text-align: right; flex-shrink: 0; }
+.fuzzy-output { background: var(--bg); border-radius: 6px; padding: 10px 12px; }
+.fo-label { font-size: 11px; color: var(--ink3); margin-bottom: 5px; }
+.fo-bar-track { height: 7px; background: var(--line); border-radius: 4px; overflow: hidden; margin-bottom: 6px; }
+.fo-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+.fo-reason { font-size: 11px; color: var(--ink3); font-style: italic; line-height: 1.4; }
+
+/* PUMP STATS */
+.runtime-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+.runtime-label { font-size: 12px; color: var(--ink3); }
+.runtime-val { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--ink); }
+
+/* SYSTEM STATUS */
+.sys-rows { display: flex; flex-direction: column; gap: 6px; }
+.sys-row { display: flex; align-items: center; justify-content: space-between; }
+.sys-key { font-size: 12px; color: var(--ink3); }
+.sys-val { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--ink2); display: flex; align-items: center; gap: 5px; }
+.sys-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.dot-ok   { background: #2d6a4f; }
+.dot-warn { background: #b5550a; }
+.dot-err  { background: #c0392b; }
+
+/* EVENT LOG */
+.log-scroll { flex: 1; overflow-y: auto; }
+.log-entry { display: flex; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--bg); }
+.log-entry:last-child { border-bottom: none; }
+.log-time { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--ink3); white-space: nowrap; flex-shrink: 0; padding-top: 1px; }
+.log-msg { font-size: 12px; color: var(--ink2); line-height: 1.4; }
+.lt-ok   { color: #2d6a4f; }
+.lt-warn { color: #b5550a; }
+.lt-err  { color: #c0392b; }
+.lt-info { color: #1e4a8a; }
+.log-empty { font-size: 12px; color: var(--ink3); font-style: italic; text-align: center; padding: 14px 0; }
+
+/* SETTINGS MODAL */
+.modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; align-items: center; justify-content: center; padding: 1rem; }
+.modal-bg.show { display: flex; }
+.modal { background: var(--card); border-radius: 10px; padding: 22px; width: 100%; max-width: 380px; border: 1px solid var(--line); }
+.modal-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; color: var(--ink); }
+.modal-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--ink3); }
+.field { margin-bottom: 12px; }
+.field label { display: block; font-size: 11px; font-weight: 600; color: var(--ink3); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+.field input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--ink); background: var(--input-bg); transition: border-color 0.15s; }
+.field input:focus { outline: none; border-color: #2d6a4f; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+.btn-primary { flex: 1; padding: 9px; background: #2d6a4f; color: #fff; border: none; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn-secondary { flex: 1; padding: 9px; background: none; color: var(--ink2); border: 1px solid var(--line); border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; }
+
+/* ABOUT MODAL */
+.about-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; align-items: center; justify-content: center; padding: 1rem; }
+.about-modal.show { display: flex; }
+.about-box { background: var(--card); border-radius: 10px; padding: 24px; width: 100%; max-width: 500px; border: 1px solid var(--line); max-height: 90vh; overflow-y: auto; }
+.about-box h2 { font-size: 18px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.about-box .sub { font-size: 12px; color: var(--ink3); margin-bottom: 18px; font-family: 'DM Mono', monospace; }
+.about-section { margin-bottom: 16px; }
+.about-section h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #2d6a4f; margin-bottom: 6px; }
+.about-section p { font-size: 13px; color: var(--ink2); line-height: 1.65; }
+.about-rule { display: flex; gap: 10px; margin-bottom: 6px; }
+.rule-label { font-family: 'DM Mono', monospace; font-size: 11px; background: var(--bg2); padding: 3px 8px; border-radius: 4px; color: var(--ink); white-space: nowrap; flex-shrink: 0; }
+.rule-desc { font-size: 12px; color: var(--ink3); line-height: 1.5; }
+.spec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.spec-item { background: var(--bg); border-radius: 6px; padding: 8px 10px; }
+.spec-key { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--ink3); margin-bottom: 3px; }
+.spec-val { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--ink); }
+.about-close { width: 100%; margin-top: 16px; padding: 9px; background: none; border: 1px solid var(--line); border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--ink2); cursor: pointer; }
+
+/* BOTTOM BAR */
+.bottom-bar { background: var(--white); border-top: 1px solid var(--line); padding: 8px 1.5rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; transition: background 0.2s; }
+.bar-btn { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: none; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; color: var(--ink2); cursor: pointer; transition: all 0.15s; }
+.bar-btn:hover { background: var(--bg2); }
+.bar-status { font-size: 12px; color: var(--ink3); font-family: 'DM Mono', monospace; margin-left: auto; }
+
+/* MOBILE */
+@media (max-width: 768px) {
+  .main { grid-template-columns: 1fr; }
+  .right { border-left: none; border-top: 1px solid var(--line); }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .chart-grid { grid-template-columns: 1fr; }
+  .nav-btn.hide-mobile { display: none; }
+  .wordmark { font-size: 13px; }
+  .left { padding: 1rem; }
+  .clock { display: none; }
+  .bar-status { display: none; }
+}
+
+@media (max-width: 480px) {
+  .stats { grid-template-columns: 1fr 1fr; }
+  .panel-top { flex-direction: column; }
+  header { padding: 0 1rem; gap: 8px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">Phoenix <span>Monitor</span></div>
+  <div class="plant-tabs">
+    <button class="ptab active" id="tab-0" onclick="switchTab(0)"><div class="ptab-sw" style="background:#2d6a4f" id="sw-0"></div><span id="tabname-0">Tomato</span></button>
+    <button class="ptab" id="tab-1" onclick="switchTab(1)"><div class="ptab-sw" style="background:#b5550a" id="sw-1"></div><span id="tabname-1">Basil</span></button>
+    <button class="ptab" id="tab-2" onclick="switchTab(2)"><div class="ptab-sw" style="background:#5b4fcf" id="sw-2"></div><span id="tabname-2">Cactus</span></button>
+  </div>
+  <div class="nav-right">
+    <div class="live-tag"><div class="live-dot"></div>Live</div>
+    <div class="clock" id="clock">--:--:--</div>
+    <button class="nav-btn hide-mobile" id="demo-btn" onclick="toggleDemo()">Demo mode</button>
+    <button class="nav-btn hide-mobile" onclick="openAbout()">About</button>
+    <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn">🌙</button>
+  </div>
+</header>
+
+<div class="alert-strip" id="alert-strip">
+  <span>&#9888;</span><span id="alert-msg">—</span>
+  <button class="alert-x" onclick="clearAlert()">&#x2715;</button>
+</div>
+
+<div class="demo-banner" id="demo-banner">
+  <div class="demo-step" id="demo-step-text">Demo mode active</div>
+  <button style="background:none;border:none;color:#93c5fd;cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif;" onclick="stopDemo()">Stop</button>
+  <div class="demo-progress" style="position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(255,255,255,0.15)"><div class="demo-bar" id="demo-progress-bar" style="width:0%"></div></div>
+</div>
+
+<div class="main">
+  <div class="left">
+
+    <!-- PANEL 0 -->
+    <div class="panel active" id="panel-0">
+      <div class="panel-top">
+        <div><div class="panel-name" id="pname-0">Tomato</div><div class="panel-slot" id="pslot-0">SLOT_01 — target 35–50%</div></div>
+        <div class="panel-actions">
+          <button class="settings-btn" onclick="openSettings(0)">Settings</button>
+          <button class="pump-btn" id="pump-0" onclick="togglePump(0)"><div class="pump-ind"></div><span class="pump-lbl">Pump off</span></button>
+          <div class="health-tag h-ok" id="badge-0">Healthy</div>
+        </div>
+      </div>
+      <div class="range-card">
+        <div class="range-label">Moisture level <span id="rng-label-0">35% – 50% target</span></div>
+        <div class="range-track">
+          <div class="range-zone" id="rng-zone-0" style="background:rgba(45,106,79,0.18);left:35%;width:15%"></div>
+          <div class="range-needle" id="rng-needle-0" style="background:#2d6a4f;left:42%"></div>
+        </div>
+        <div class="range-ticks"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="stat-key">Moisture</div><div class="stat-num" id="vm-0">--<span class="stat-unit">%</span></div><div class="stat-note">target 40%</div></div>
+        <div class="stat"><div class="stat-key">Light</div><div class="stat-num" id="vl-0">--<span class="stat-unit">%</span></div><div class="stat-note">LDR reading</div></div>
+        <div class="stat"><div class="stat-key">Temperature</div><div class="stat-num" id="vt-0">--<span class="stat-unit">°C</span></div><div class="stat-note">ambient</div></div>
+        <div class="stat"><div class="stat-key">Pump</div><div class="stat-num" id="vp-0" style="font-size:18px;padding-top:4px;color:var(--ink3)">OFF</div><div class="stat-note" id="vps-0">moisture OK</div></div>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-box"><div class="chart-top"><span class="chart-name">Moisture</span><span class="chart-live" id="cl-m-0">--</span></div><div class="chart-wrap"><canvas id="ch-m-0"></canvas></div></div>
+        <div class="chart-box"><div class="chart-top"><span class="chart-name">Light</span><span class="chart-live" id="cl-l-0">--</span></div><div class="chart-wrap"><canvas id="ch-l-0"></canvas></div></div>
+        <div class="chart-box"><div class="chart-top"><span class="chart-name">Temperature</span><span class="chart-live" id="cl-t-0">--</span></div><div class="chart-wrap"><canvas id="ch-t-0"></canvas></div></div>
+        <div class="chart-box"><div class="chart-top"><span class="chart-name">Pump activity</span><span class="chart-live" id="cl-p-0">--</span></div><div class="chart-wrap"><canvas id="ch-p-0"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- PANEL 1 -->
+    <div class="panel" id="panel-1">
+      <div class="panel-top">
+        <div><div class="panel-name" id="pname-1">Basil</div><div class="panel-slot" id="pslot-1">SLOT_02 — target 50–65%</div></div>
+        <div class="panel-actions">
+          <button class="settings-btn" onclick="openSettings(1)">Settings</button>
+          <button class="pump-btn" id="pump-1" onclick="togglePump(1)"><div class="pump-ind"></div><span class="pump-lbl">Pump off</span></button>
+          <div class="health-tag h-ok" id="badge-1">Healthy</div>
+        </div>
+      </div>
+      <div class="range-card">
+        <div class="range-label">Moisture level <span id="rng-label-1">50% – 65% target</span></div>
+        <div class="range-track">
+          <div class="range-zone" id="rng-zone-1" style="background:rgba(181,85,10,0.18);left:50%;width:15%"></div>
+          <div class="range-needle" id="rng-needle-1" style="background:#b5550a;left:57%"></div>
+        </div>
+        <div class="range-ticks"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="stat-key">Moisture</div><div class="stat-num" id="vm-1">--<span class="stat-unit">%</span></div><div class="stat-note">target 55%</div></div>
+        <div class="stat"><div class="stat-key">Light</div><div class="stat-num" id="vl-1">--<span class="stat-unit">%</span></div><div class="stat-note">LDR reading</div></div>
+        <div class="stat"><div class="stat-key">Temperature</div><div class="stat-num" id="vt-1">--<span class="stat-unit">°C</span></div><div class="stat-note">ambient</div></div>
+        <div class="stat"><div class="stat-key">Pump</div><div class="stat-num" id="vp-1" style="font-size:18px;padding-top:4px;color:var(--ink3)">OFF</div><div class="stat-note" id="vps-1">moisture OK</div></div>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-box"><div class="chart-top"><span class="chart-name">Moisture</span><span class="chart-live" id="cl-m-1">--</span></div><div class="chart-wrap"><canvas id="ch-m-1"></canvas></div></div>
+        <div class="chart-box"><div class="chart-top"><span class="chart-name">Light</span><span class="chart-live" id="cl-l-1">--</span></div><div class="chart-wrap"><canvas id="ch-l-1"></canvas></div></div>
+        <div class="chart-box"><div class="chart-top"><span class="chart-name">Temperature</span><span class="chart-live" id="cl-t-1">--</span></div><div class="chart-wrap"><canvas id="ch-t-1"></canvas></div></div>
+        <div class="chart-box"><div class="chart-top"><span class="chart-name">Pump activity</span><span class="chart-live" id="cl-p-1">--</span></div><div class="chart-wrap"><canvas id="ch-p-1"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- PANEL 2 -->
+    <div class="panel" id="panel-2">
+      <div class="panel-top">
+        <div><div class="panel-name" id="pname-2">Cactus</div><div class="panel-slot" id="pslot-2">SLOT_03 — target 15–30%</div></div>
+        <div class="panel-actions">
+          <button class="settings-btn" onclick="openSettings(2)">Settings</button>
+          <button class="pump-btn" id="pump-2" onclick="togglePump(2)"><div class="pump-ind"></div><span class="pump-lbl">Pump off</span></button>
+          <div class="health-tag h-ok" id="badge-2">Healthy</div>
+        </div>
+      </div>
+      <div class="range-card">
+        <div class="range-label">Moisture level <span id="rng-label-2">15% – 30% target</span></div>
+        <div class="range-track">
+          <div class="range-zone" id="rng-zone-2" style="background:rgba(91,79,207,0.18);left:15%;width:15%"></div>
+          <div class="range-needle" id="rng-needle-2" style="background:#5b4fcf;left:20%"></div>
+        </div>
+        <div class="range-ticks"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="stat-key">Moisture</div><div class="stat-num" id="vm-2">--<span class="stat-unit">%</span></div><div class="stat-note">target 20%</div></div>
+        <div class="stat"><div class="stat-key">Light</div><div class="stat-num" id="vl-2">--<span class="stat-unit">%</span></div><div class="stat-note">LDR reading</div></div>
+        <div class="stat"><div class="stat-key">Temperature</div><div class="stat-num" id="vt-2">--<span class="stat-unit">°C</span></div><div class="stat-note">ambient</div></div>
+        <div class="stat"><div class="stat-key">Pump</div><div class="stat-num" id="vp-2" style="font-size:18px;padding-top:4px;color:var(--ink3)">OFF</div><div class="stat-note" id="vps-2">moisture OK</div></div>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-box"><div class="chart-top"><span class="chart-name">Moisture</span><span class="chart-live" id="cl-m-2">--</span></div><div class="chart-wrap"><canvas id="ch-m-2"></canvas></div></div>
+        <div class="chart-box"><div class="chart-top"><span class="chart-name">Light</span><span class="chart-live" id="cl-l-2">--</span></div><div class="chart-wrap"><canvas id="ch-l-2"></canvas></div></div>
+        <div class="chart-box"><div class="chart-top"><span class="chart-name">Temperature</span><span class="chart-live" id="cl-t-2">--</span></div><div class="chart-wrap"><canvas id="ch-t-2"></canvas></div></div>
+        <div class="chart-box"><div class="chart-top"><span class="chart-name">Pump activity</span><span class="chart-live" id="cl-p-2">--</span></div><div class="chart-wrap"><canvas id="ch-p-2"></canvas></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT SIDEBAR -->
+  <div class="right">
+    <div class="sidebar-section">
+      <div class="section-title">Fuzzy logic output</div>
+      <div class="fuzzy-decision">Decision: <span class="fuzzy-badge f-off" id="fz-decision">--</span></div>
+      <div class="fuzzy-inputs">
+        <div class="fi-row"><span class="fi-label">Moisture</span><div class="fi-track"><div class="fi-fill" id="fz-m-bar" style="width:0%;background:#2d6a4f"></div></div><span class="fi-val" id="fz-m-val">--</span></div>
+        <div class="fi-row"><span class="fi-label">Light</span><div class="fi-track"><div class="fi-fill" id="fz-l-bar" style="width:0%;background:#b5550a"></div></div><span class="fi-val" id="fz-l-val">--</span></div>
+        <div class="fi-row"><span class="fi-label">Temp</span><div class="fi-track"><div class="fi-fill" id="fz-t-bar" style="width:0%;background:#c0392b"></div></div><span class="fi-val" id="fz-t-val">--</span></div>
+      </div>
+      <div class="fuzzy-output">
+        <div class="fo-label">Pump duty cycle</div>
+        <div class="fo-bar-track"><div class="fo-bar-fill" id="fz-duty-bar" style="width:0%;background:#2d6a4f"></div></div>
+        <div class="fo-reason" id="fz-reason">Waiting for data...</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-title">Pump stats</div>
+      <div class="runtime-row"><span class="runtime-label">Session runtime</span><span class="runtime-val" id="pump-runtime">0s</span></div>
+      <div class="runtime-row"><span class="runtime-label">Last watered</span><span class="runtime-val" id="last-watered">never</span></div>
+      <div class="runtime-row"><span class="runtime-label">Times activated</span><span class="runtime-val" id="pump-count">0</span></div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-title">System status</div>
+      <div class="sys-rows">
+        <div class="sys-row"><span class="sys-key">Arduino</span><span class="sys-val"><div class="sys-dot dot-ok" id="sys-arduino-dot"></div><span id="sys-arduino">Connected</span></span></div>
+        <div class="sys-row"><span class="sys-key">Serial port</span><span class="sys-val" id="sys-port">/dev/ttyUSB0</span></div>
+        <div class="sys-row"><span class="sys-key">Last packet</span><span class="sys-val" id="sys-last">--</span></div>
+        <div class="sys-row"><span class="sys-key">Pi uptime</span><span class="sys-val" id="sys-uptime">0s</span></div>
+        <div class="sys-row"><span class="sys-key">Data rate</span><span class="sys-val">1 Hz</span></div>
+      </div>
+    </div>
+
+    <div class="sidebar-section log-section">
+      <div class="section-title">Event log</div>
+      <div class="log-scroll" id="event-log">
+        <div class="log-empty" id="log-empty">No events yet</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM BAR -->
+<div class="bottom-bar">
+  <button class="bar-btn" onclick="simulateAlert()">Trigger alert</button>
+  <button class="bar-btn" onclick="clearAlert()">Clear alert</button>
+  <button class="bar-btn" onclick="exportCSV()">Export CSV</button>
+  <button class="bar-btn" onclick="openAbout()" style="display:none" id="about-bar-btn">About</button>
+  <div class="bar-status" id="bar-status">All systems nominal</div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-bg" id="settings-modal">
+  <div class="modal">
+    <div class="modal-title">Plant settings — <span id="modal-plant-name">—</span><button class="modal-close" onclick="closeSettings()">&#x2715;</button></div>
+    <div class="field"><label>Plant name</label><input type="text" id="s-name"></div>
+    <div class="field"><label>Slot label</label><input type="text" id="s-slot"></div>
+    <div class="field-row">
+      <div class="field"><label>Min moisture %</label><input type="number" id="s-lo" min="0" max="100"></div>
+      <div class="field"><label>Max moisture %</label><input type="number" id="s-hi" min="0" max="100"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeSettings()">Cancel</button>
+      <button class="btn-primary" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ABOUT MODAL -->
+<div class="about-modal" id="about-modal">
+  <div class="about-box">
+    <h2>Phoenix Smart Plant Care</h2>
+    <div class="sub">NURAI 2026 Competition — Team Phoenix — Agriculture Track</div>
+
+    <div class="about-section">
+      <h3>What is this system?</h3>
+      <p>Phoenix is an autonomous plant care robot that monitors soil moisture, ambient light, and temperature in real time and uses fuzzy logic to decide when and how much to water each plant — without fixed thresholds or manual intervention.</p>
+    </div>
+
+    <div class="about-section">
+      <h3>How fuzzy logic works here</h3>
+      <p>Unlike a simple "if moisture below X, water" rule, fuzzy logic maps sensor readings to membership degrees (low, medium, high) and combines them to produce a nuanced output — the pump duty cycle. This means the system responds proportionally, not just on/off.</p>
+    </div>
+
+    <div class="about-section">
+      <h3>Decision rules</h3>
+      <div class="about-rule"><span class="rule-label">IF moisture LOW</span><span class="rule-desc">AND temp HIGH → pump duty HIGH (urgent watering needed)</span></div>
+      <div class="about-rule"><span class="rule-label">IF moisture LOW</span><span class="rule-desc">AND temp MEDIUM → pump duty MEDIUM</span></div>
+      <div class="about-rule"><span class="rule-label">IF moisture OK</span><span class="rule-desc">→ pump OFF (maintain current state)</span></div>
+      <div class="about-rule"><span class="rule-label">IF moisture HIGH</span><span class="rule-desc">→ pump OFF (prevent overwatering)</span></div>
+      <div class="about-rule"><span class="rule-label">IF light HIGH</span><span class="rule-desc">→ boost duty (high evaporation expected)</span></div>
+    </div>
+
+    <div class="about-section">
+      <h3>Hardware</h3>
+      <div class="spec-grid">
+        <div class="spec-item"><div class="spec-key">Microcontroller</div><div class="spec-val">Arduino Uno</div></div>
+        <div class="spec-item"><div class="spec-key">Computer</div><div class="spec-val">Raspberry Pi 4</div></div>
+        <div class="spec-item"><div class="spec-key">Moisture sensor</div><div class="spec-val">Capacitive (analog)</div></div>
+        <div class="spec-item"><div class="spec-key">Light sensor</div><div class="spec-val">LDR module</div></div>
+        <div class="spec-item"><div class="spec-key">Actuator</div><div class="spec-val">3x SG90 servo</div></div>
+        <div class="spec-item"><div class="spec-key">Display</div><div class="spec-val">16x2 I2C LCD</div></div>
+        <div class="spec-item"><div class="spec-key">Pump control</div><div class="spec-val">JQC3F relay + MOSFET</div></div>
+        <div class="spec-item"><div class="spec-key">AI method</div><div class="spec-val">Fuzzy logic (scikit-fuzzy)</div></div>
+      </div>
+    </div>
+
+    <button class="about-close" onclick="closeAbout()">Close</button>
+  </div>
+</div>
+
+<script>
+const plants = [
+  { name:'Tomato', slot:'SLOT_01', target:40, lo:35, hi:50, color:'#2d6a4f', fill:'rgba(45,106,79,0.08)' },
+  { name:'Basil',  slot:'SLOT_02', target:55, lo:50, hi:65, color:'#b5550a', fill:'rgba(181,85,10,0.08)' },
+  { name:'Cactus', slot:'SLOT_03', target:20, lo:15, hi:30, color:'#5b4fcf', fill:'rgba(91,79,207,0.08)' }
+];
+
+const MAX = 30;
+let active = 0, settingsTarget = 0;
+let pumpRuntimes = [0,0,0], pumpCounts = [0,0,0], lastWatered = [null,null,null];
+let uptimeSeconds = 0, csvLog = [];
+let demoActive = false, demoTimer = null, demoStepTimer = null;
+
+const state = plants.map(p => ({
+  m: Array.from({length:MAX}, () => Math.round(p.target+(Math.random()-.5)*8)),
+  l: Array.from({length:MAX}, () => Math.round(65+(Math.random()-.5)*20)),
+  t: Array.from({length:MAX}, () => parseFloat((24+(Math.random()-.5)*3).toFixed(1))),
+  p: Array(MAX).fill(0),
+  pumpOn:false, hasAlert:false, charts:{}, curM:p.target, curL:65, curT:24
+}));
+
+const labels = Array.from({length:MAX},(_,i)=>i===MAX-1?'now':`-${MAX-1-i}s`);
+
+function getGC() { return document.documentElement.getAttribute('data-theme')==='dark'?'#1a1c18':'#f0ede6'; }
+function getTC() { return document.documentElement.getAttribute('data-theme')==='dark'?'#444840':'#bbb5a8'; }
+
+function mkOpts(min,max) {
+  return {
+    responsive:true, maintainAspectRatio:false, animation:false,
+    plugins:{legend:{display:false},tooltip:{backgroundColor:document.documentElement.getAttribute('data-theme')==='dark'?'#2a2c22':'#fff',titleColor:'#8a8a8a',bodyColor:document.documentElement.getAttribute('data-theme')==='dark'?'#e8e6e0':'#1a1a1a',borderColor:'#ddd8cc',borderWidth:1,padding:8,cornerRadius:6}},
+    scales:{
+      x:{grid:{color:getGC()},border:{display:false},ticks:{color:getTC(),font:{size:10,family:"'DM Mono',monospace"},maxTicksLimit:5,autoSkip:true,maxRotation:0}},
+      y:{min,max,grid:{color:getGC()},border:{display:false},ticks:{color:getTC(),font:{size:10,family:"'DM Mono',monospace"}}}
+    }
+  };
+}
+
+function mkLine(data,color,fill){return{data:[...data],borderColor:color,backgroundColor:fill,fill:true,tension:.35,pointRadius:0,borderWidth:1.5};}
+
+plants.forEach((p,i)=>{
+  const s=state[i];
+  s.charts.m=new Chart(document.getElementById(`ch-m-${i}`),{type:'line',data:{labels:[...labels],datasets:[mkLine(s.m,p.color,p.fill)]},options:mkOpts(0,100)});
+  s.charts.l=new Chart(document.getElementById(`ch-l-${i}`),{type:'line',data:{labels:[...labels],datasets:[mkLine(s.l,'#b5550a','rgba(181,85,10,0.08)')]},options:mkOpts(0,100)});
+  s.charts.t=new Chart(document.getElementById(`ch-t-${i}`),{type:'line',data:{labels:[...labels],datasets:[mkLine(s.t,'#c0392b','rgba(192,57,43,0.08)')]},options:mkOpts(15,40)});
+  s.charts.p=new Chart(document.getElementById(`ch-p-${i}`),{type:'bar',data:{labels:[...labels],datasets:[{data:[...s.p],backgroundColor:p.color+'55',borderRadius:2}]},options:mkOpts(0,1)});
+});
+
+function push(ch,v){ch.data.datasets[0].data.shift();ch.data.datasets[0].data.push(v);ch.update('none');}
+function ts(){return new Date().toLocaleTimeString();}
+
+function addLog(msg,type=''){
+  const log=document.getElementById('event-log');
+  const empty=document.getElementById('log-empty');
+  if(empty)empty.remove();
+  const e=document.createElement('div');
+  e.className='log-entry';
+  e.innerHTML=`<span class="log-time">${ts()}</span><span class="log-msg lt-${type}">${msg}</span>`;
+  log.insertBefore(e,log.firstChild);
+  if(log.children.length>80)log.removeChild(log.lastChild);
+}
+
+function fuzzyLogic(m,l,t,p){
+  const deficit=p.lo-m, tempHigh=t>28, lightHigh=l>70;
+  let duty=0, decision='off', reason='';
+  if(m<p.lo){
+    duty=Math.min(100,Math.round(40+deficit*3+(tempHigh?20:0)+(lightHigh?10:0)));
+    if(duty>70){decision='high';reason=`Moisture critically low (${m}% vs ${p.lo}% min). High evaporation conditions — full pump duty.`;}
+    else{decision='medium';reason=`Moisture below target range. Moderate watering initiated at ${duty}% duty.`;}
+  } else if(m>p.hi){
+    duty=0;decision='off';reason=`Soil saturated (${m}% vs ${p.hi}% max). Pump held off to prevent overwatering.`;
+  } else {
+    duty=0;decision='off';reason=`Moisture within target range (${p.lo}–${p.hi}%). System idle.`;
+  }
+  return{duty,decision,reason};
+}
+
+function updateFuzzy(i){
+  const s=state[i],p=plants[i];
+  const{duty,decision,reason}=fuzzyLogic(s.curM,s.curL,s.curT,p);
+  const dec=document.getElementById('fz-decision');
+  dec.textContent=decision;
+  dec.className=`fuzzy-badge f-${decision==='high'?'high':decision==='medium'?'med':'off'}`;
+  document.getElementById('fz-m-bar').style.width=s.curM+'%';
+  document.getElementById('fz-l-bar').style.width=s.curL+'%';
+  document.getElementById('fz-t-bar').style.width=Math.max(0,Math.min(100,Math.round(((s.curT-15)/25)*100)))+'%';
+  document.getElementById('fz-m-val').textContent=s.curM+'%';
+  document.getElementById('fz-l-val').textContent=s.curL+'%';
+  document.getElementById('fz-t-val').textContent=s.curT+'°C';
+  document.getElementById('fz-duty-bar').style.width=duty+'%';
+  document.getElementById('fz-duty-bar').style.background=duty>60?'#c0392b':duty>30?'#b5550a':'#2d6a4f';
+  document.getElementById('fz-reason').textContent=reason;
+}
+
+setInterval(()=>{
+  uptimeSeconds++;
+  const h=Math.floor(uptimeSeconds/3600),m=Math.floor((uptimeSeconds%3600)/60),s=uptimeSeconds%60;
+  document.getElementById('sys-uptime').textContent=h>0?`${h}h ${m}m`:m>0?`${m}m ${s}s`:`${s}s`;
+  document.getElementById('sys-last').textContent=ts();
+  plants.forEach((_,i)=>{if(state[i].pumpOn)pumpRuntimes[i]++;});
+  const rt=pumpRuntimes[active],h2=Math.floor(rt/3600),m2=Math.floor((rt%3600)/60),s2=rt%60;
+  document.getElementById('pump-runtime').textContent=h2>0?`${h2}h ${m2}m`:m2>0?`${m2}m ${s2}s`:`${s2}s`;
+},1000);
+
+setInterval(()=>{
+  plants.forEach((p,i)=>{
+    const s=state[i];
+    const m=Math.round(p.target+(Math.random()-.5)*14);
+    const l=Math.round(65+(Math.random()-.5)*25);
+    const t=parseFloat((24+(Math.random()-.5)*3).toFixed(1));
+    const pu=s.pumpOn?1:0;
+    s.curM=m;s.curL=l;s.curT=t;
+    push(s.charts.m,m);push(s.charts.l,l);push(s.charts.t,t);push(s.charts.p,pu);
+    csvLog.push({time:ts(),plant:p.name,moisture:m,light:l,temp:t,pump:pu});
+    if(csvLog.length>5000)csvLog.shift();
+    document.getElementById(`vm-${i}`).innerHTML=m+'<span class="stat-unit">%</span>';
+    document.getElementById(`vl-${i}`).innerHTML=l+'<span class="stat-unit">%</span>';
+    document.getElementById(`vt-${i}`).innerHTML=t+'<span class="stat-unit">°C</span>';
+    document.getElementById(`cl-m-${i}`).textContent=m+'%';
+    document.getElementById(`cl-l-${i}`).textContent=l+'%';
+    document.getElementById(`cl-t-${i}`).textContent=t+'°C';
+    document.getElementById(`cl-p-${i}`).textContent=s.pumpOn?'on':'off';
+    const pv=document.getElementById(`vp-${i}`);
+    pv.textContent=s.pumpOn?'ON':'OFF';pv.style.color=s.pumpOn?p.color:'var(--ink3)';
+    document.getElementById(`vps-${i}`).textContent=s.pumpOn?'watering now':'moisture OK';
+    const needle=document.getElementById(`rng-needle-${i}`);
+    if(needle)needle.style.left=Math.min(98,Math.max(2,m))+'%';
+    if(!s.hasAlert){
+      const badge=document.getElementById(`badge-${i}`),sw=document.getElementById(`sw-${i}`);
+      if(m<p.lo){badge.className='health-tag h-warn';badge.textContent='Dry';if(sw)sw.style.background='#b5550a';}
+      else if(m>p.hi){badge.className='health-tag h-err';badge.textContent='Overwatered';if(sw)sw.style.background='#c0392b';}
+      else{badge.className='health-tag h-ok';badge.textContent='Healthy';if(sw)sw.style.background=p.color;}
+    }
+    if(i===active)updateFuzzy(i);
+  });
+},1000);
+
+function switchTab(i){
+  active=i;
+  document.querySelectorAll('.ptab').forEach((b,j)=>b.classList.toggle('active',i===j));
+  document.querySelectorAll('.panel').forEach((p,j)=>p.classList.toggle('active',i===j));
+  updateFuzzy(i);
+  const rt=pumpRuntimes[i],h=Math.floor(rt/3600),m=Math.floor((rt%3600)/60),s=rt%60;
+  document.getElementById('pump-runtime').textContent=h>0?`${h}h ${m}m`:m>0?`${m}m ${s}s`:`${s}s`;
+  document.getElementById('pump-count').textContent=pumpCounts[i];
+  document.getElementById('last-watered').textContent=lastWatered[i]||'never';
+}
+
+function togglePump(i){
+  const s=state[i],p=plants[i];
+  s.pumpOn=!s.pumpOn;
+  const btn=document.getElementById(`pump-${i}`);
+  btn.classList.toggle('on',s.pumpOn);
+  btn.querySelector('.pump-lbl').textContent=s.pumpOn?'Pump on':'Pump off';
+  if(s.pumpOn){pumpCounts[i]++;lastWatered[i]=ts();document.getElementById('last-watered').textContent=lastWatered[i];document.getElementById('pump-count').textContent=pumpCounts[i];addLog(`${p.name} pump turned ON`,'ok');}
+  else{addLog(`${p.name} pump turned OFF`,'');}
+}
+
+function simulateAlert(){
+  const i=active,p=plants[i];state[i].hasAlert=true;
+  document.getElementById(`badge-${i}`).className='health-tag h-err';document.getElementById(`badge-${i}`).textContent='Error';
+  document.getElementById(`sw-${i}`).style.background='#c0392b';
+  document.getElementById('alert-strip').classList.add('show');
+  document.getElementById('alert-msg').textContent=`${p.name} (${p.slot}) is not receiving water — check the system`;
+  document.getElementById('bar-status').textContent='Warning active';
+  document.getElementById('sys-arduino-dot').className='sys-dot dot-warn';
+  document.getElementById('sys-arduino').textContent='Warning';
+  addLog(`ALERT: ${p.name} not receiving water`,'err');
+}
+
+function clearAlert(){
+  plants.forEach((_,i)=>{state[i].hasAlert=false;});
+  document.getElementById('alert-strip').classList.remove('show');
+  document.getElementById('bar-status').textContent='All systems nominal';
+  document.getElementById('sys-arduino-dot').className='sys-dot dot-ok';
+  document.getElementById('sys-arduino').textContent='Connected';
+  addLog('Alert cleared','ok');
+}
+
+/* DEMO MODE */
+const demoSteps = [
+  { text:'Step 1/5 — System overview: 3 plants monitored independently', action:()=>{ switchTab(0); addLog('Demo started — system overview','info'); }, duration:4000 },
+  { text:'Step 2/5 — Moisture drops below threshold on Tomato', action:()=>{ state[0].curM=22; addLog('Demo: Tomato moisture dropping...','warn'); }, duration:4000 },
+  { text:'Step 3/5 — Fuzzy logic activates pump at medium duty', action:()=>{ togglePump(0); addLog('Demo: Fuzzy logic triggered pump ON','info'); }, duration:4000 },
+  { text:'Step 4/5 — Alert scenario: watering system failure', action:()=>{ if(state[0].pumpOn)togglePump(0); simulateAlert(); }, duration:4000 },
+  { text:'Step 5/5 — System recovered, alert cleared', action:()=>{ clearAlert(); switchTab(1); addLog('Demo: System recovered','ok'); }, duration:4000 },
+];
+
+let demoStepIdx=0, demoStepStart=0;
+
+function toggleDemo(){
+  if(demoActive){stopDemo();}else{startDemo();}
+}
+
+function startDemo(){
+  demoActive=true;
+  demoStepIdx=0;
+  document.getElementById('demo-btn').classList.add('demo-active');
+  document.getElementById('demo-btn').textContent='Stop demo';
+  document.getElementById('demo-banner').classList.add('show');
+  document.getElementById('demo-banner').style.position='relative';
+  addLog('Demo mode started','info');
+  runDemoStep();
+}
+
+function runDemoStep(){
+  if(!demoActive||demoStepIdx>=demoSteps.length){stopDemo();return;}
+  const step=demoSteps[demoStepIdx];
+  document.getElementById('demo-step-text').textContent=step.text;
+  step.action();
+  demoStepStart=Date.now();
+  const bar=document.getElementById('demo-progress-bar');
+  bar.style.width='0%';
+  const tick=setInterval(()=>{
+    if(!demoActive){clearInterval(tick);return;}
+    const pct=Math.min(100,((Date.now()-demoStepStart)/step.duration)*100);
+    bar.style.width=pct+'%';
+    if(pct>=100){clearInterval(tick);demoStepIdx++;setTimeout(runDemoStep,200);}
+  },50);
+}
+
+function stopDemo(){
+  demoActive=false;
+  clearTimeout(demoTimer);
+  document.getElementById('demo-btn').classList.remove('demo-active');
+  document.getElementById('demo-btn').textContent='Demo mode';
+  document.getElementById('demo-banner').classList.remove('show');
+  addLog('Demo mode stopped','');
+}
+
+/* SETTINGS */
+function openSettings(i){
+  settingsTarget=i;const p=plants[i];
+  document.getElementById('modal-plant-name').textContent=p.name;
+  document.getElementById('s-name').value=p.name;document.getElementById('s-slot').value=p.slot;
+  document.getElementById('s-lo').value=p.lo;document.getElementById('s-hi').value=p.hi;
+  document.getElementById('settings-modal').classList.add('show');
+}
+function closeSettings(){document.getElementById('settings-modal').classList.remove('show');}
+function saveSettings(){
+  const i=settingsTarget,p=plants[i];
+  const name=document.getElementById('s-name').value.trim()||p.name;
+  const slot=document.getElementById('s-slot').value.trim()||p.slot;
+  const lo=parseInt(document.getElementById('s-lo').value)||p.lo;
+  const hi=parseInt(document.getElementById('s-hi').value)||p.hi;
+  p.name=name;p.slot=slot;p.lo=lo;p.hi=hi;p.target=Math.round((lo+hi)/2);
+  document.getElementById(`pname-${i}`).textContent=name;
+  document.getElementById(`pslot-${i}`).textContent=`${slot} — target ${lo}–${hi}%`;
+  document.getElementById(`tabname-${i}`).textContent=name;
+  document.getElementById(`rng-label-${i}`).textContent=`${lo}% – ${hi}% target`;
+  const zone=document.getElementById(`rng-zone-${i}`);
+  if(zone){zone.style.left=lo+'%';zone.style.width=(hi-lo)+'%';}
+  addLog(`Settings updated for ${name}: range ${lo}–${hi}%`,'ok');
+  closeSettings();
+}
+
+/* ABOUT */
+function openAbout(){document.getElementById('about-modal').classList.add('show');}
+function closeAbout(){document.getElementById('about-modal').classList.remove('show');}
+
+/* DARK MODE */
+function toggleTheme(){
+  const html=document.documentElement;
+  const isDark=html.getAttribute('data-theme')==='dark';
+  html.setAttribute('data-theme',isDark?'light':'dark');
+  document.getElementById('theme-btn').textContent=isDark?'🌙':'☀️';
+  addLog(`Switched to ${isDark?'light':'dark'} mode`,'');
+}
+
+/* EXPORT */
+function exportCSV(){
+  if(!csvLog.length){addLog('No data to export yet','warn');return;}
+  const header='time,plant,moisture,light,temp,pump\n';
+  const rows=csvLog.map(r=>`${r.time},${r.plant},${r.moisture},${r.light},${r.temp},${r.pump}`).join('\n');
+  const blob=new Blob([header+rows],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`phoenix_log_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+  addLog(`Exported ${csvLog.length} records to CSV`,'ok');
+}
+
+/* MOBILE: show About in bottom bar on small screens */
+function checkMobile(){
+  const btn=document.getElementById('about-bar-btn');
+  if(btn)btn.style.display=window.innerWidth<768?'block':'none';
+}
+window.addEventListener('resize',checkMobile);checkMobile();
+
+document.getElementById('settings-modal').addEventListener('click',e=>{if(e.target===document.getElementById('settings-modal'))closeSettings();});
+document.getElementById('about-modal').addEventListener('click',e=>{if(e.target===document.getElementById('about-modal'))closeAbout();});
+
+setInterval(()=>{document.getElementById('clock').textContent=new Date().toLocaleTimeString();},1000);
+
+addLog('System started','ok');
+</script>
+</body>
+</html>
