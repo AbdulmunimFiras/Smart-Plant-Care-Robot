@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # =====================================================================
-#   PLANT CARE PI CONTROLLER  -  v1.6
+#   PLANT CARE PI CONTROLLER  -  v1.7
 #   Raspberry Pi supervisor for the Mega-based plant care robot.
 #
 #   v1.6 — Fourth-pass fixes (this revision):
